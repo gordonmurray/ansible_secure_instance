@@ -1,0 +1,45 @@
+# An ansible playbook that will be run on an ec2 instance accessible at localhost to run updates and hardening tasks
+---
+- name: Harden instance
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: true
+
+  vars:
+    os_hardening_enabled: true
+    ssh_hardening_enabled: true
+    sysctl_hardening_enabled: true
+    os_hidepid_enabled: false
+    os_security_packages_clean: false # this prevents an issure with /dev on ec2 instances
+    os_minimize_access_enabled: false
+    os_auditd_enabled: false
+    harden_sysctl_settings:
+      net.ipv4.conf.all.send_redirects: 0
+      net.ipv4.conf.default.send_redirects: 0
+      net.ipv4.conf.all.accept_source_route: 0
+      net.ipv4.conf.default.accept_source_route: 0
+      net.ipv4.conf.all.accept_redirects: 0
+      net.ipv4.conf.default.accept_redirects: 0
+      net.ipv4.conf.all.log_martians: 1
+      net.ipv4.conf.default.log_martians: 1
+      kernel.randomize_va_space: 2
+      net.ipv4.ip_forward: 1 # This is 0 by default to be more secure. However it prevents the container from looking up the instance meta data
+
+  collections:
+    - devsec.hardening
+
+  pre_tasks:
+
+ # 1. Ensure system is updated
+    - name: Update all packages (Amazon Linux, RHEL, CentOS)
+      yum:
+        name: "*"
+        state: latest
+      when: ansible_os_family in ["RedHat", "Amazon"]
+
+    - name: Update all packages (Debian, Ubuntu)
+      apt:
+        upgrade: dist
+        update_cache: yes
+      when: ansible_os_family == "Debian"
